@@ -3,8 +3,8 @@ const Channel = require('./Channel');
 const Collection = require('../util/Collection');
 const Constants = require('../util/Constants');
 const FFZEmote = require('./FFZEmote');
-const got = require('got');
 const TwitchEmote = require('./TwitchEmote');
+const axios = require('axios');
 
 const options = {
     responseType: 'json'
@@ -45,21 +45,14 @@ class EmoteFetcher {
      * @param {int} id - Name of the channel.
      * @returns {Promise<Object[]>}
      */
-    _getRawTwitchEmotes(id) {
+    async _getRawTwitchEmotes(id) {
         const endpoint = !id
             ? Constants.Twitch.Global
             : Constants.Twitch.Channel(id); // eslint-disable-line new-cap
 
-        return got(endpoint, options)
-            .then(req => req.body)
-            .catch(err => {
-                if (!id) {
-                    // If fetching global didn't work, try with fallback
-                    return got(Constants.Twitch.GlobalFallback, options).body;
-                } else {
-                    throw err;
-                }
-            });
+        const { data } = await axios.get(endpoint, options);
+
+        return data;
     }
 
     /**
@@ -89,17 +82,18 @@ class EmoteFetcher {
      * @param {int} [id=null] - ID of the channel.
      * @returns {Promise<Object[]>}
      */
-    _getRawBTTVEmotes(id) {
+    async _getRawBTTVEmotes(id) {
         const endpoint = !id
             ? Constants.BTTV.Global
             : Constants.BTTV.Channel(id); // eslint-disable-line new-cap
 
-        return got(endpoint, options).then(req => {
-            // Global emotes
-            if (req.body instanceof Array) return req.body;
-            // Channel emotes
-            return [...req.body.channelEmotes, ...req.body.sharedEmotes];
-        });
+        const { data } = await axios.get(endpoint, options);
+
+        if (data instanceof Array) return data;
+
+        const { channelEmotes, sharedEmotes } = data;
+
+        return [...channelEmotes, ...sharedEmotes];
     }
 
     /**
@@ -128,7 +122,7 @@ class EmoteFetcher {
      * @param {(number|string)} id - ID or name of the channel.
      * @returns {Promise<Object[]>}
      */
-    _getRawFFZEmotes(id) {
+    async _getRawFFZEmotes(id) {
         let endpoint;
 
         if (typeof id === 'number') {
@@ -137,15 +131,15 @@ class EmoteFetcher {
             endpoint = Constants.FFZ.ChannelName(id); // eslint-disable-line new-cap
         }
 
-        return got(endpoint, options).then(req => {
-            const emotes = [];
-            for (const key of Object.keys(req.body.sets)) {
-                const set = req.body.sets[key];
-                emotes.push(...set.emoticons);
-            }
+        const { data } = await axios.get(endpoint, options);
+        const emotes = [];
 
-            return emotes;
-        });
+        for (const key of Object.keys(data.sets)) {
+            const set = data.sets[key];
+            emotes.push(...set.emoticons);
+        }
+
+        return emotes;
     }
 
     /**
